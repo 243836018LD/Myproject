@@ -1,0 +1,45 @@
+name: 博客项目自动CI/CD部署
+
+# 触发条件：推送到main分支时，自动执行流水线
+on:
+  push:
+    branches:
+      - main
+
+# 流水线任务
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 拉取GitHub上的项目代码
+      - name: 拉取项目代码
+        uses: actions/checkout@v4
+
+      # 2. 登录 你虚拟机的 Harbor（你上次用的就是这个！）
+      - name: 登录Harbor私有仓库
+        uses: docker/login-action@v3
+        with:
+          registry: 192.168.2.126:8080
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_PWD }}
+
+      # 3. 构建Docker镜像并推送到你的虚拟机Harbor（你上次的真实地址）
+      - name: 构建并推送Docker镜像
+        run: |
+          docker build -t 192.168.2.126:8080/lnmp/blog:latest .
+          docker push 192.168.2.126:8080/lnmp/blog:latest
+
+      # 4. 远程登录你的虚拟机，自动更新部署（你上次没做完的关键一步）
+      - name: 远程更新虚拟机服务
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PWD }}
+          script: |
+            # 进入你虚拟机的项目目录
+            cd /opt/myproject
+            # 拉取最新镜像
+            docker compose pull
+            # 重启服务
+            docker compose up -d
